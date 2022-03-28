@@ -979,12 +979,25 @@ class Resize(AzureFeatureMixin, features.Resize):
 
 
 class Hibernation(AzureFeatureMixin, features.Hibernation):
-    @classmethod
-    def on_before_deployment(cls, *args: Any, **kwargs: Any) -> None:
-        # arm_parameters: AzureArmParameter = kwargs.pop("arm_parameters")
-        # arm_parameters.enable_hibernation = True
-        ...
+    _hibernation_properties = """
+        {
+            "additionalCapabilities": {
+                "hibernationEnabled": "true"
+            }
+        }
+        """
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
         self._initialize_information(self._node)
+
+    @classmethod
+    def _install_by_platform(cls, *args: Any, **kwargs: Any) -> None:
+        template: Any = kwargs.get("template")
+        log = cast(Logger, kwargs.get("log"))
+        log.debug("updating arm template to support vm hibernation.")
+        resources = template["resources"]
+        virtual_machines = cls._get_resource(
+            resources, "Microsoft.Compute/virtualMachines"
+        )
+        virtual_machines["properties"].update(json.loads(cls._hibernation_properties))
