@@ -6,6 +6,11 @@ from lisa.executable import Tool
 
 
 class Service(Tool):
+    # exit codes for systemd are documented:
+    # https://manpages.debian.org/buster/systemd/systemd.exec.5.en.html
+
+    SYSTEMD_EXIT_NOPERMISSION = 4
+
     @property
     def command(self) -> str:
         return "systemctl"
@@ -26,8 +31,8 @@ class Service(Tool):
         self._internal_tool = self.node.tools[service_type]
         return True
 
-    def restart_service(self, name: str) -> None:
-        self._internal_tool.restart_service(name)  # type: ignore
+    def restart_service(self, name: str, ignore_error_code: int = 0) -> None:
+        self._internal_tool.restart_service(name, ignore_error_code)  # type: ignore
 
     def stop_service(self, name: str) -> None:
         self._internal_tool.stop_service(name)  # type: ignore
@@ -72,9 +77,11 @@ class ServiceInternal(Tool):
             cmd_result = self.run(f"{name} stop", shell=True, sudo=True, force_run=True)
             cmd_result.assert_exit_code()
 
-    def restart_service(self, name: str) -> None:
+    def restart_service(self, name: str, ignore_error_code: int = 0) -> None:
         cmd_result = self.run(f"{name} restart", shell=True, sudo=True, force_run=True)
-        cmd_result.assert_exit_code()
+        # optionally ignore exit code if it matches our expected non-zero value
+        if not (ignore_error_code and cmd_result.exit_code == ignore_error_code):
+            cmd_result.assert_exit_code()
 
 
 class Systemctl(Tool):
@@ -91,9 +98,10 @@ class Systemctl(Tool):
             cmd_result = self.run(f"stop {name}", shell=True, sudo=True, force_run=True)
             cmd_result.assert_exit_code()
 
-    def restart_service(self, name: str) -> None:
+    def restart_service(self, name: str, ignore_error_code: int = 0) -> None:
         cmd_result = self.run(f"restart {name}", shell=True, sudo=True, force_run=True)
-        cmd_result.assert_exit_code()
+        if not (ignore_error_code and cmd_result.exit_code == ignore_error_code):
+            cmd_result.assert_exit_code()
 
     def enable_service(self, name: str) -> None:
         cmd_result = self.run(f"enable {name}", shell=True, sudo=True, force_run=True)
